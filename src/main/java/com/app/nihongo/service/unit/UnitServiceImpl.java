@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -83,23 +84,65 @@ public class UnitServiceImpl implements UnitService {
 
         List<UserLessonStatus> userStatuses = userLessonStatusRepository.findById_UserId(userId);
 
-        if (userStatuses.isEmpty()) {
-            Lesson firstLesson = lessonRepository.findAll().stream()
-                    .min(Comparator.comparing(Lesson::getLessonId))
-                    .orElseThrow(() -> new RuntimeException("No lessons found in database"));
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+        List<Unit> allUnits = unitRepository.findAll();
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
 
-            UserLessonStatusKey key = new UserLessonStatusKey(userId, firstLesson.getLessonId());
-            UserLessonStatus initialStatus = new UserLessonStatus();
-            initialStatus.setId(key);
-            initialStatus.setUser(user);
-            initialStatus.setLesson(firstLesson);
-            initialStatus.setStatus("current");
+        // Group units by level to make each level independent
+        Map<String, List<Unit>> unitsByLevel = allUnits.stream()
+                .filter(u -> u.getLevel() != null)
+                .collect(Collectors.groupingBy(Unit::getLevel));
 
-            userLessonStatusRepository.save(initialStatus);
+        for (String levelKey : unitsByLevel.keySet()) {
+            final String currentLevel = levelKey.trim();
+            List<UserLessonStatus> levelStatuses = userStatuses.stream()
+                    .filter(us -> us.getLesson().getUnit().getLevel() != null &&
+                            us.getLesson().getUnit().getLevel().trim().equalsIgnoreCase(currentLevel))
+                    .collect(Collectors.toList());
 
-            userStatuses.add(initialStatus);
+            long currentCount = levelStatuses.stream().filter(us -> "current".equals(us.getStatus())).count();
+
+            // Nếu chưa có bài nào hoặc dữ liệu bị trùng (nhiều nút START)
+            if (levelStatuses.isEmpty() || currentCount > 1) {
+                Unit firstUnit = unitsByLevel.get(levelKey).stream()
+                        .min(Comparator
+                                .comparing(u -> u.getDisplayOrder() != null ? u.getDisplayOrder() : Integer.MAX_VALUE))
+                        .orElse(null);
+
+                if (firstUnit != null) {
+                    List<Lesson> unitLessons = lessonRepository.findByUnit_UnitId(firstUnit.getUnitId());
+                    Lesson firstLesson = unitLessons.stream()
+                            .min(Comparator.comparing(
+                                    l -> l.getDisplayOrder() != null ? l.getDisplayOrder() : Integer.MAX_VALUE))
+                            .orElse(null);
+
+                    if (firstLesson != null) {
+                        // Dọn dẹp các trạng thái 'current' bị thừa
+                        if (currentCount > 1) {
+                            List<UserLessonStatus> toDelete = levelStatuses.stream()
+                                    .filter(us -> "current".equals(us.getStatus()))
+                                    .collect(Collectors.toList());
+                            userLessonStatusRepository.deleteAll(toDelete);
+                            userStatuses.removeAll(toDelete);
+                        }
+
+                        // Chỉ khởi tạo bài đầu tiên nếu thực sự chưa có tiến độ (completed)
+                        boolean anyCompleted = levelStatuses.stream()
+                                .anyMatch(us -> "completed".equals(us.getStatus()));
+                        if (!anyCompleted) {
+                            UserLessonStatusKey key = new UserLessonStatusKey(userId, firstLesson.getLessonId());
+                            UserLessonStatus initialStatus = new UserLessonStatus();
+                            initialStatus.setId(key);
+                            initialStatus.setUser(user);
+                            initialStatus.setLesson(firstLesson);
+                            initialStatus.setStatus("current");
+
+                            userLessonStatusRepository.save(initialStatus);
+                            userStatuses.add(initialStatus);
+                        }
+                    }
+                }
+            }
         }
 
         List<Unit> units = unitRepository.findAll();

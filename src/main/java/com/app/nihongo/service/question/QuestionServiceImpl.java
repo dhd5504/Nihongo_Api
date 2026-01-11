@@ -3,16 +3,19 @@ package com.app.nihongo.service.question;
 import com.app.nihongo.dao.FlashcardRepository;
 import com.app.nihongo.dao.MultipleChoiceQuestionRepository;
 import com.app.nihongo.dao.SentenceMatchingQuestionRepository;
+import com.app.nihongo.dao.SentenceOrderingQuestionRepository;
 import com.app.nihongo.dao.UserMultipleChoiceQuestionRepository;
 import com.app.nihongo.dto.*;
 import com.app.nihongo.entity.MultipleChoiceQuestion;
 import com.app.nihongo.entity.SentenceMatchingQuestion;
+import com.app.nihongo.entity.SentenceOrderingQuestion;
 import com.app.nihongo.entity.User;
 import com.app.nihongo.entity.UserMultipleChoiceQuestion;
 import com.app.nihongo.enums.QuestionType;
 import com.app.nihongo.mapper.FlashcardMapper;
 import com.app.nihongo.mapper.MultipleChoiceQuestionMapper;
 import com.app.nihongo.mapper.SentenceMatchingQuestionMapper;
+import com.app.nihongo.mapper.SentenceOrderingQuestionMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -43,6 +46,12 @@ public class QuestionServiceImpl implements QuestionService {
 
     @Autowired
     private SentenceMatchingQuestionMapper sentenceMatchingQuestionMapper;
+
+    @Autowired
+    private SentenceOrderingQuestionRepository sentenceOrderingQuestionRepository;
+
+    @Autowired
+    private SentenceOrderingQuestionMapper sentenceOrderingQuestionMapper;
 
     @Override
     public ResponseEntity<?> getQuestionsByTypeAndLessonId(Integer userId, QuestionType type, Integer lessonId) {
@@ -89,6 +98,14 @@ public class QuestionServiceImpl implements QuestionService {
 
                 return ResponseEntity.ok(Collections.singletonList(pairingChallenge));
 
+            case SENTENCE_ORDERING:
+                List<SentenceOrderingQuestionDTO> orderingQuestions = sentenceOrderingQuestionRepository
+                        .findByLesson_LessonId(lessonId)
+                        .stream()
+                        .map(q -> sentenceOrderingQuestionMapper.toDto(q, false))
+                        .collect(Collectors.toList());
+                return ResponseEntity.ok(orderingQuestions);
+
             default:
                 throw new IllegalArgumentException("Invalid question type");
         }
@@ -128,6 +145,12 @@ public class QuestionServiceImpl implements QuestionService {
                 SentenceMatchingQuestionDTO smq = sentenceMatchingQuestionMapper.toDto(smqEntityFound, false,
                         lessonQuestions);
                 return ResponseEntity.ok(smq);
+
+            case SENTENCE_ORDERING:
+                SentenceOrderingQuestion soqEntity = sentenceOrderingQuestionRepository.findById(questionId)
+                        .orElseThrow(() -> new IllegalArgumentException(
+                                "Sentence ordering question not found with ID: " + questionId));
+                return ResponseEntity.ok(sentenceOrderingQuestionMapper.toDto(soqEntity, false));
 
             default:
                 throw new IllegalArgumentException("Invalid question type: " + type);

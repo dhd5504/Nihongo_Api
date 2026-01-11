@@ -15,6 +15,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -61,18 +62,44 @@ public class LessonServiceImpl implements LessonService {
             User user = currentStatus.getUser();
             userLessonStatusRepository.save(currentStatus);
 
-            Integer nextLessonId = lessonId + 1;
-            Lesson nextLesson = lessonRepository.findById(nextLessonId).orElse(null);
+            // Tìm bài học hiện tại để biết Unit và displayOrder
+            Lesson currentLesson = lessonRepository.findById(lessonId).orElse(null);
+            if (currentLesson == null)
+                return ResponseEntity.ok("Update successfully");
+
+            // 1. Tìm bài tiếp theo trong CÙNG Unit
+            Lesson nextLesson = lessonRepository.findByUnit_UnitId(currentLesson.getUnit().getUnitId())
+                    .stream()
+                    .filter(l -> l.getDisplayOrder() > currentLesson.getDisplayOrder())
+                    .min(Comparator.comparing(Lesson::getDisplayOrder))
+                    .orElse(null);
+
+            // 2. Nếu đã hết bài trong Unit này, tìm bài đầu tiên của Unit kế tiếp
+            if (nextLesson == null) {
+                Integer nextUnitOrder = currentLesson.getUnit().getDisplayOrder() + 1;
+                String currentLevel = currentLesson.getUnit().getLevel();
+
+                nextLesson = lessonRepository.findAll().stream()
+                        .filter(l -> l.getUnit().getDisplayOrder().equals(nextUnitOrder)
+                                && l.getUnit().getLevel().equals(currentLevel))
+                        .min(Comparator.comparing(Lesson::getDisplayOrder))
+                        .orElse(null);
+            }
 
             if (nextLesson != null) {
-                UserLessonStatusKey nextKey = new UserLessonStatusKey(userId, nextLessonId);
+                UserLessonStatusKey nextKey = new UserLessonStatusKey(userId, nextLesson.getLessonId());
                 UserLessonStatus nextLessonStatus = userLessonStatusRepository.findById(nextKey)
                         .orElse(new UserLessonStatus());
-                nextLessonStatus.setId(nextKey);
-                nextLessonStatus.setLesson(nextLesson);
-                nextLessonStatus.setUser(user);
-                nextLessonStatus.setStatus("current");
-                userLessonStatusRepository.save(nextLessonStatus);
+
+                // Chỉ cập nhật nếu bài tiếp theo đang bị khóa (chưa có status hoặc status là
+                // locked)
+                if (nextLessonStatus.getStatus() == null || "locked".equals(nextLessonStatus.getStatus())) {
+                    nextLessonStatus.setId(nextKey);
+                    nextLessonStatus.setLesson(nextLesson);
+                    nextLessonStatus.setUser(user);
+                    nextLessonStatus.setStatus("current");
+                    userLessonStatusRepository.save(nextLessonStatus);
+                }
             }
 
             return ResponseEntity.ok("Update successfully");
@@ -81,18 +108,18 @@ public class LessonServiceImpl implements LessonService {
         return ResponseEntity.badRequest().build();
     }
 
-//    @Override
-//    public ResponseEntity<List<LessonDTO>> getLessonsByUnitId(Integer unitId) {
-//        List<Lesson> lessons = lessonRepository.findByUnit_UnitId(unitId);
-//        List<LessonDTO> lessonDTOs = lessons.stream().map(lessonMapper::toDto).collect(Collectors.toList());
-//        return ResponseEntity.ok(lessonDTOs);
-//    }
+    // @Override
+    // public ResponseEntity<List<LessonDTO>> getLessonsByUnitId(Integer unitId) {
+    // List<Lesson> lessons = lessonRepository.findByUnit_UnitId(unitId);
+    // List<LessonDTO> lessonDTOs =
+    // lessons.stream().map(lessonMapper::toDto).collect(Collectors.toList());
+    // return ResponseEntity.ok(lessonDTOs);
+    // }
     @Override
     public ResponseEntity<LessonDTO> getLessonById(Integer lessonId) {
         Lesson lesson = lessonRepository.findById(lessonId).orElseThrow(() -> new RuntimeException("Lesson not found"));
         return ResponseEntity.ok(lessonMapper.toDto(lesson));
     }
-
 
     @Override
     public ResponseEntity<?> setLevelUser(Integer userId, String level) {
@@ -114,7 +141,6 @@ public class LessonServiceImpl implements LessonService {
             userLessonStatusRepository.save(initialStatus);
             return ResponseEntity.ok("Update successful");
         }
-
 
         String sql = "INSERT INTO user_lesson_status (user_id, lesson_id, status) VALUES (?, ?, ?)";
 
@@ -142,6 +168,5 @@ public class LessonServiceImpl implements LessonService {
         }
         return ResponseEntity.ok("Update successfully");
     }
-
 
 }
