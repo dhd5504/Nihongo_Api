@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -35,20 +36,20 @@ public class UnitServiceImpl implements UnitService {
 
     @Override
     public ResponseEntity<List<UnitDTO>> getAllUnits() {
-            List<Unit> units = unitRepository.findAll();
-            List<UnitDTO> result = new ArrayList<>();
+        List<Unit> units = unitRepository.findAll();
+        List<UnitDTO> result = new ArrayList<>();
 
-            for (Unit unit : units) {
-                List<Lesson> lessons = lessonRepository.findByUnit_UnitId(unit.getUnitId());
-                List<LessonDTO> lessonDTOs = lessons.stream()
-                        .map(lessonMapper::toDto)
-                        .collect(Collectors.toList());
+        for (Unit unit : units) {
+            List<Lesson> lessons = lessonRepository.findByUnit_UnitId(unit.getUnitId());
+            List<LessonDTO> lessonDTOs = lessons.stream()
+                    .map(lessonMapper::toDto)
+                    .collect(Collectors.toList());
 
-                UnitDTO unitWithLessonsDTO =  unitMapper.toDto(unit);
-                unitWithLessonsDTO.setLessons(lessonDTOs);
-                result.add(unitWithLessonsDTO);
-            }
-            return ResponseEntity.ok(result);
+            UnitDTO unitWithLessonsDTO = unitMapper.toDto(unit);
+            unitWithLessonsDTO.setLessons(lessonDTOs);
+            result.add(unitWithLessonsDTO);
+        }
+        return ResponseEntity.ok(result);
 
     }
 
@@ -63,13 +64,14 @@ public class UnitServiceImpl implements UnitService {
                     .map(lessonMapper::toDto)
                     .collect(Collectors.toList());
 
-            UnitDTO unitWithLessonsDTO =  unitMapper.toDto(unit);
+            UnitDTO unitWithLessonsDTO = unitMapper.toDto(unit);
             unitWithLessonsDTO.setLessons(lessonDTOs);
             result.add(unitWithLessonsDTO);
         }
         return ResponseEntity.ok(result);
 
     }
+
     @Override
     public ResponseEntity<UnitDTO> getUnitById(Integer unitId) {
         Unit unit = unitRepository.findById(unitId).orElseThrow(() -> new RuntimeException("Unit not found"));
@@ -82,8 +84,9 @@ public class UnitServiceImpl implements UnitService {
         List<UserLessonStatus> userStatuses = userLessonStatusRepository.findById_UserId(userId);
 
         if (userStatuses.isEmpty()) {
-            Lesson firstLesson = lessonRepository.findById(1)
-                    .orElseThrow(() -> new RuntimeException("Lesson 1 not found"));
+            Lesson firstLesson = lessonRepository.findAll().stream()
+                    .min(Comparator.comparing(Lesson::getLessonId))
+                    .orElseThrow(() -> new RuntimeException("No lessons found in database"));
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 

@@ -1,8 +1,14 @@
 package com.app.nihongo.entity;
 
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
+@Data
 @Entity
+@AllArgsConstructor
+@NoArgsConstructor
 @Table(name = "Sentence_Matching_Questions")
 public class SentenceMatchingQuestion {
 
@@ -22,4 +28,3 @@ public class SentenceMatchingQuestion {
 
     // Getters and Setters
 }
-
