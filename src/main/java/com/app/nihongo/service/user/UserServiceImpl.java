@@ -25,6 +25,9 @@ public class UserServiceImpl implements UserService {
     private UserRepository userRepository;
 
     @Autowired
+    private com.app.nihongo.dao.UserProgressRepository userProgressRepository;
+
+    @Autowired
     private UserMapper userMapper;
 
     @Autowired
@@ -113,7 +116,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Integer getUserExperience(Integer userId) {
-        return userRepository.calculateExperience(userId);
+        return userProgressRepository.sumScoreByUserId(userId);
     }
 
     @Override

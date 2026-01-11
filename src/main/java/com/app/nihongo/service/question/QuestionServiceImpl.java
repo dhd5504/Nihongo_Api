@@ -143,8 +143,12 @@ public class QuestionServiceImpl implements QuestionService {
 
                 if (existingAnswer.isPresent()) {
                     UserMultipleChoiceQuestion userAnswer = existingAnswer.get();
-                    userAnswer.setIsCompleted(isCorrect);
-                    userMultipleChoiceQuestionRepository.save(userAnswer);
+                    // Only update to true if correct. Don't lose completion status (and XP) if
+                    // answered wrong later.
+                    if (isCorrect && !userAnswer.getIsCompleted()) {
+                        userAnswer.setIsCompleted(true);
+                        userMultipleChoiceQuestionRepository.save(userAnswer);
+                    }
                 } else {
                     UserMultipleChoiceQuestion newAnswer = new UserMultipleChoiceQuestion();
                     User user = new User();
